@@ -99,3 +99,34 @@ npm run dev
 - **ReAct Pattern**: LLM decides which tools to call based on system prompt
 - **Tool Execution**: Automatic function calling loop until completion
 - **Database-First**: All provider and appointment data in PostgreSQL
+
+## Testing 
+
+This repo includes a comprehensive test suite covering:
+- **Unit Tests**: Individual tool functions and database operations
+- **Integration Tests**: API endpoints and database queries
+- **LLM Behavior Tests**: Tool calling and conversation flows
+- **End-to-End Tests**: Complete appointment booking scenarios
+- **Performance Tests**: Response times and error handling
+- **Edge Cases**: Malformed inputs and graceful degradation
+
+### Setup
+
+1. **Install test dependencies:**
+   ```bash
+   python -m venv venv 
+   source venv/bin/activate
+   pip install pytest pytest-mock pytest-cov
+   pip install psycopg2-binary
+   ```
+
+2. **Place test file:**
+   ```bash
+   # The test file should be in the backend directory
+   cd backend
+   ```
+
+3. **Running all tests**
+   ```bash
+   pytest test_suite.py -v
+   ```
