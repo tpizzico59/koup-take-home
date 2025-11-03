@@ -2,12 +2,17 @@ import json
 from openai import OpenAI
 import config
 import tools
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class CareCoordinatorLLM:
     """OpenAI client with ReAct tool execution loop."""
     
     def __init__(self):
+        if not config.OPENAI_API_KEY:
+            raise ValueError("OPENAI_API_KEY not set in environment")
         self.client = OpenAI(api_key=config.OPENAI_API_KEY)
         self.model = config.OPENAI_MODEL
         self.system_prompt = self._load_system_prompt()
@@ -142,74 +147,99 @@ class CareCoordinatorLLM:
         Returns:
             Final assistant message content
         """
+        logger.info(f"Starting chat with {len(messages)} messages")
+        
         # Add system prompt if not present
         if not messages or messages[0].get('role') != 'system':
             messages = [{"role": "system", "content": self.system_prompt}] + messages
         
         conversation = messages.copy()
         
-        for _ in range(max_iterations):
-            # Call OpenAI
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=conversation,
-                tools=self.tool_schemas,
-                tool_choice="auto"
-            )
+        for iteration in range(max_iterations):
+            logger.info(f"Iteration {iteration + 1}/{max_iterations}")
             
-            message = response.choices[0].message
-            
-            # Build assistant message
-            assistant_msg = {"role": "assistant", "content": message.content}
-            
-            # Add tool calls if present
-            if message.tool_calls:
-                assistant_msg["tool_calls"] = [
-                    {
-                        "id": tc.id,
-                        "type": "function",
-                        "function": {
-                            "name": tc.function.name,
-                            "arguments": tc.function.arguments
+            try:
+                # Call OpenAI
+                logger.debug(f"Calling OpenAI with {len(conversation)} messages")
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=conversation,
+                    tools=self.tool_schemas,
+                    tool_choice="auto"
+                )
+                
+                message = response.choices[0].message
+                logger.debug(f"OpenAI response - has tool_calls: {bool(message.tool_calls)}")
+                
+                # Build assistant message
+                assistant_msg = {"role": "assistant", "content": message.content}
+                
+                # Add tool calls if present
+                if message.tool_calls:
+                    logger.info(f"Processing {len(message.tool_calls)} tool calls")
+                    assistant_msg["tool_calls"] = [
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": tc.function.name,
+                                "arguments": tc.function.arguments
+                            }
                         }
-                    }
-                    for tc in message.tool_calls
-                ]
-            
-            conversation.append(assistant_msg)
-            
-            # If no tool calls, we're done
-            if not message.tool_calls:
-                return message.content
-            
-            # Execute each tool call
-            for tool_call in message.tool_calls:
-                tool_name = tool_call.function.name
+                        for tc in message.tool_calls
+                    ]
                 
-                try:
-                    arguments = json.loads(tool_call.function.arguments)
-                except json.JSONDecodeError:
-                    arguments = {}
+                conversation.append(assistant_msg)
                 
-                # Execute tool
-                try:
-                    if tool_name in tools.TOOLS:
-                        result = tools.TOOLS[tool_name](**arguments)
-                    else:
-                        result = {"error": f"Unknown tool: {tool_name}"}
-                except Exception as e:
-                    result = {"error": str(e)}
+                # If no tool calls, we're done
+                if not message.tool_calls:
+                    logger.info("No tool calls, returning response")
+                    return message.content
                 
-                # Add tool response to conversation
-                conversation.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "content": json.dumps(result)
-                })
+                # Execute each tool call
+                for tool_call in message.tool_calls:
+                    tool_name = tool_call.function.name
+                    logger.info(f"Executing tool: {tool_name}")
+                    
+                    try:
+                        arguments = json.loads(tool_call.function.arguments)
+                        logger.debug(f"Tool arguments: {arguments}")
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Failed to parse tool arguments: {e}")
+                        arguments = {}
+                    
+                    # Execute tool
+                    try:
+                        if tool_name in tools.TOOLS:
+                            result = tools.TOOLS[tool_name](**arguments)
+                            logger.debug(f"Tool result: {result}")
+                        else:
+                            result = {"error": f"Unknown tool: {tool_name}"}
+                            logger.error(f"Unknown tool: {tool_name}")
+                    except Exception as e:
+                        result = {"error": str(e)}
+                        logger.error(f"Tool execution error: {e}", exc_info=True)
+                    
+                    # Add tool response to conversation
+                    conversation.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": json.dumps(result)
+                    })
+            
+            except Exception as e:
+                logger.error(f"Error in chat iteration {iteration}: {e}", exc_info=True)
+                return f"I apologize, but I encountered an error: {str(e)}"
         
         # Max iterations reached
+        logger.warning("Max iterations reached")
         return "I apologize, but I'm having trouble completing this request. Could you try rephrasing?"
 
+# Lazy LLM instance getter
+_llm_instance = None
 
-# Global LLM instance
-llm = CareCoordinatorLLM()
+def get_llm():
+    global _llm_instance
+    if _llm_instance is None:
+        _llm_instance = CareCoordinatorLLM()
+    return _llm_instance

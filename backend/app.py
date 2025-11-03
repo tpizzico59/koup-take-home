@@ -2,10 +2,28 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import config
 import database as db
-from llm import llm
+from llm import get_llm
+import logging
+import traceback
+
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-CORS(app, origins=config.CORS_ORIGINS.split(','))
+CORS(app, resources={
+    r"/*": {
+        "origins": "*",
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type"]
+    }
+})
+
+# Get LLM instance
+llm = get_llm()
 
 
 # ============================================================================
@@ -19,19 +37,27 @@ def chat():
     Receives full message history, executes ReAct loop, returns response.
     """
     try:
+        logger.info("=== New chat request ===")
         data = request.json
+        logger.info(f"Request data: {data}")
+        
         messages = data.get('messages', [])
+        logger.info(f"Messages count: {len(messages)}")
         
         if not messages:
+            logger.warning("No messages provided")
             return jsonify({"error": "messages required"}), 400
         
         # Execute ReAct loop
+        logger.info("Calling LLM chat...")
         response = llm.chat(messages)
+        logger.info(f"LLM response: {response}")
         
         return jsonify({"message": response})
     
     except Exception as e:
-        print(f"Error in /chat: {e}")
+        logger.error(f"Error in /chat: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -189,4 +215,4 @@ if __name__ == '__main__':
     print("  GET    /self-pay-rates     - Self-pay rates")
     print("=" * 60)
     
-    app.run(host='0.0.0.0', port=config.FLASK_PORT, debug=True)
+    app.run(host=config.FLASK_HOST, port=config.FLASK_PORT, debug=True)

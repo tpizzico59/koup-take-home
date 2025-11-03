@@ -53,7 +53,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # Configure environment
-# Copy contents of .env.example into a .env file at the root of the repo 
+# Copy contents of .env.example into a .env file
 # Edit .env: Add OPENAI_API_KEY and DATABASE_URL. 
 # **NOTE: On mac, user is probably the output of whoami command if postgres user not set. 
 

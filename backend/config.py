@@ -15,4 +15,5 @@ PATIENT_API_URL = os.getenv('PATIENT_API_URL', 'http://localhost:5001')
 
 # Flask
 FLASK_PORT = int(os.getenv('FLASK_PORT', 5000))
+FLASK_HOST = os.getenv('FLASK_HOST', '127.0.0.1')
 CORS_ORIGINS = os.getenv('CORS_ORIGINS', 'http://localhost:3000')
