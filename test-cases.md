@@ -1,8 +1,4 @@
 # Test Scenarios
-## Overview
-This document provides comprehensive test scenarios to demonstrate the full capabilities of the Care Coordinator Assistant, covering all requirements, edge cases, and advanced features.
-
----
 
 ## 1. BASIC APPOINTMENT BOOKING (Happy Path)
 
@@ -52,6 +48,9 @@ This document provides comprehensive test scenarios to demonstrate the full capa
 ✓ Correct appointment type determined (ESTABLISHED)
 ✓ Only books after explicit approval
 ✓ Provides confirmation number
+
+
+**After this, start a new chat and ask about upcoming appointments for John Doe!**
 
 ---
 

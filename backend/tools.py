@@ -9,11 +9,41 @@ def search_patient(name: str, dob: str):
     try:
         # Call external patient API
         response = requests.get(f"{config.PATIENT_API_URL}/patient/1")
+        
         if response.status_code == 200:
             patient = response.json()
+            
             # Verify name and DOB match
             if patient['name'].lower() == name.lower() and patient['dob'] == dob:
+                # Get additional appointments from appointment database table with provider names
+                db_appointments = db.fetch_all(
+                    """
+                    SELECT 
+                        a.appointment_date,
+                        a.appointment_time,
+                        a.status,
+                        p.first_name,
+                        p.last_name
+                    FROM appointments a
+                    JOIN providers p ON a.provider_id = p.id
+                    WHERE a.patient_id = %s
+                    ORDER BY a.appointment_date DESC
+                    """,
+                    (patient['id'],)
+                )
+                
+                # Convert db appointments to match Patient API format
+                if db_appointments:
+                    for apt in db_appointments:
+                        patient['appointments'].append({
+                            'date': apt['appointment_date'].strftime('%m/%d/%y'),
+                            'time': apt['appointment_time'].strftime('%I:%M%p').lower(),
+                            'provider': f"Dr. {apt['first_name']} {apt['last_name']}",
+                            'status': apt['status']
+                        })
+                
                 return patient
+        
         return {"error": "Patient not found"}
     except Exception as e:
         return {"error": str(e)}
